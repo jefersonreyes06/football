@@ -1,0 +1,102 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Orbitron:wght@400;700;900&display=swap');
+
+:root {
+  --bg-color: #050505;
+  --panel-bg: rgba(10, 15, 20, 0.65);
+  --panel-border: rgba(0, 255, 255, 0.2);
+  --neon-cyan: #00ffff;
+  --neon-magenta: #ff00ff;
+  --neon-green: #00ff66;
+  --neon-orange: #ff6600;
+  --text-main: #e0e0e0;
+  --text-muted: #888888;
+  --font-main: 'Inter', sans-serif;
+  --font-display: 'Orbitron', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  font-family: var(--font-main);
+  overflow: hidden;
+  /* Prevent scrolling, it's a full screen app */
+  user-select: none;
+}
+
+/* Glassmorphism utility */
+.glass-panel {
+  background: var(--panel-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.text-cyan {
+  color: var(--neon-cyan);
+}
+
+.text-magenta {
+  color: var(--neon-magenta);
+}
+
+.text-green {
+  color: var(--neon-green);
+}
+
+.text-orange {
+  color: var(--neon-orange);
+}
+
+.glow-cyan {
+  text-shadow: 0 0 8px var(--neon-cyan);
+}
+
+.glow-magenta {
+  text-shadow: 0 0 8px var(--neon-magenta);
+}
+
+/* Progress Bars */
+.progress-container {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  height: 8px;
+  width: 100%;
+}
+
+.progress-bar {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+/* UI Overlay Container */
+.ui-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  /* Let clicks pass through to 3D canvas by default */
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Interactive elements should have pointer-events auto */
+.interactive {
+  pointer-events: auto;
+}

@@ -26,17 +26,24 @@ export const startSimulationLoop = () => {
 
   simulationInterval = window.setInterval(() => {
     const state = useSimulationStore.getState();
-    if (!state.isPlaying) return;
+    if (!state.isPlaying || state.matchStatus === 'finished') return;
 
-    let { players, ball, matchStats } = state;
-    
-    // Check possession first
+    const { players, ball, matchStats } = state;
+
+    // First update cooldowns for all players
+    players.forEach(p => {
+      if (p.actionCooldownMs > 0) {
+        p.actionCooldownMs -= TICK_RATE * state.speedMultiplier;
+      }
+    });
+
+    // Check possession first - ONLY if cooldown <= 0
     let possessingPlayer: Player | null = null;
     let minBallDist = Infinity;
 
     players.forEach(p => {
       const d = distance(p.position, ball.position);
-      if (d < 1.5 && d < minBallDist) {
+      if (d < 1.5 && d < minBallDist && p.actionCooldownMs <= 0) {
         minBallDist = d;
         possessingPlayer = p;
       }
@@ -59,6 +66,9 @@ export const startSimulationLoop = () => {
     let kickOccurred = false;
     let dribbleVelocity: Vector3 | null = null;
     let stealOccurred = false;
+    
+    // Process old pass trajectories (fade out)
+    let updatedTrajectories = state.passTrajectories.map(t => ({...t, opacity: t.opacity - 0.05 * state.speedMultiplier})).filter(t => t.opacity > 0);
 
     // AI with Ball
     if (possessingPlayer) {
@@ -85,51 +95,67 @@ export const startSimulationLoop = () => {
                   newBallVelocity = [kickDir[0] * 1.5, 0, kickDir[2] * 1.5];
                   kickOccurred = true;
                   possessingPlayer.possessionTimeMs = 0;
+                  possessingPlayer.actionCooldownMs = 500; // Cooldown after being tackled
                   break;
               }
           }
       }
 
       if (!stealOccurred) {
-          // Decision making
-          const needsToPass = possessingPlayer.possessionTimeMs > 3500 || underPressure;
-          const canShoot = distToGoal < 25;
-
+          // Decision making - stricter passing rules (1.5 to 2.5 secs max)
+          const needsToPass = possessingPlayer.possessionTimeMs > (1500 + Math.random() * 1000) || underPressure;
           const makesDecision = Math.random() > 0.80;
 
-          if (makesDecision && canShoot && Math.random() > 0.5) {
-              // SHOOT
-              const targetZ = (Math.random() - 0.5) * 8; 
-              const kickDir = normalize([opponentGoal[0] - possessingPlayer.position[0], 0, targetZ - possessingPlayer.position[2]]);
-              const kickPower = 2.5 + Math.random() * 1.5;
-              
-              newBallVelocity = [kickDir[0] * kickPower, 0, kickDir[2] * kickPower];
-              newImpactForce = 800 + Math.random() * 400; 
-              newBallSpin = 300 + Math.random() * 500;
-              kickOccurred = true;
-              possessingPlayer.possessionTimeMs = 0;
-          } else if (makesDecision && needsToPass) {
-              // PASS
-              const teammates = players.filter(p => p.team === possessingPlayer!.team && p.id !== possessingPlayer!.id);
-              const advancedTeammates = teammates.filter(p => isTeamA ? p.position[0] > possessingPlayer!.position[0] + 2 : p.position[0] < possessingPlayer!.position[0] - 2);
-              
-              if (advancedTeammates.length > 0) {
-                  // Pick the one closest to goal that is unmarked
-                  const target = advancedTeammates[Math.floor(Math.random() * advancedTeammates.length)];
-                  const kickDir = normalize([target.position[0] - possessingPlayer.position[0], 0, target.position[2] - possessingPlayer.position[2]]);
-                  const kickPower = 2.0 + Math.random() * 1.0;
-
+          if (makesDecision && needsToPass) {
+              if (distToGoal < 22) {
+                  // SHOOT directly to goal
+                  const targetZ = (Math.random() - 0.5) * 8; 
+                  const kickDir = normalize([opponentGoal[0] - possessingPlayer.position[0], 0, targetZ - possessingPlayer.position[2]]);
+                  const kickPower = 3.5 + Math.random() * 1.5; // High speed
+                  
                   newBallVelocity = [kickDir[0] * kickPower, 0, kickDir[2] * kickPower];
-                  newImpactForce = 400 + Math.random() * 300;
-                  newBallSpin = 100 + Math.random() * 200;
+                  newImpactForce = 1200 + Math.random() * 400; 
+                  newBallSpin = 300 + Math.random() * 500;
                   kickOccurred = true;
                   possessingPlayer.possessionTimeMs = 0;
-              } else if (possessingPlayer.possessionTimeMs > 4000) {
-                  // Forced bad pass if held too long
-                  const kickDir = normalize([(Math.random()-0.5), 0, (Math.random()-0.5)]);
-                  newBallVelocity = [kickDir[0] * 2, 0, kickDir[2] * 2];
-                  kickOccurred = true;
-                  possessingPlayer.possessionTimeMs = 0;
+                  possessingPlayer.actionCooldownMs = 500; // Release ball cooldown
+              } else {
+                  // PASS
+                  const teammates = players.filter(p => p.team === possessingPlayer!.team && p.id !== possessingPlayer!.id);
+                  // Target teammates within 10-30m, preferably forward
+                  const validTargets = teammates.filter(p => {
+                      const d = distance(possessingPlayer!.position, p.position);
+                      const isForward = isTeamA ? p.position[0] > possessingPlayer!.position[0] : p.position[0] < possessingPlayer!.position[0];
+                      return d > 5 && d < 30 && (isForward || Math.random() > 0.5);
+                  });
+                  
+                  if (validTargets.length > 0) {
+                      const target = validTargets[Math.floor(Math.random() * validTargets.length)];
+                      const kickDir = normalize([target.position[0] - possessingPlayer.position[0], 0, target.position[2] - possessingPlayer.position[2]]);
+                      const kickPower = 2.5 + Math.random() * 1.0;
+
+                      newBallVelocity = [kickDir[0] * kickPower, 0, kickDir[2] * kickPower];
+                      newImpactForce = 400 + Math.random() * 300;
+                      newBallSpin = 100 + Math.random() * 200;
+                      kickOccurred = true;
+                      possessingPlayer.possessionTimeMs = 0;
+                      possessingPlayer.actionCooldownMs = 500; // Release ball cooldown
+                      
+                      // Add visual trajectory
+                      updatedTrajectories.push({
+                          id: Math.random().toString(36).substr(2, 9),
+                          start: [...possessingPlayer.position] as Vector3,
+                          end: [...target.position] as Vector3,
+                          opacity: 1.0
+                      });
+                  } else if (possessingPlayer.possessionTimeMs > 2500) {
+                      // Forced bad pass if held too long and no one is open
+                      const kickDir = normalize([(Math.random()-0.5), 0, (Math.random()-0.5)]);
+                      newBallVelocity = [kickDir[0] * 2, 0, kickDir[2] * 2];
+                      kickOccurred = true;
+                      possessingPlayer.possessionTimeMs = 0;
+                      possessingPlayer.actionCooldownMs = 500; // Release ball cooldown
+                  }
               }
           }
 
@@ -148,6 +174,10 @@ export const startSimulationLoop = () => {
               newBallVelocity = [0, 0, 0];
               newBallSpin = 0;
               newImpactForce = 150 + Math.random() * 100;
+          } else {
+              // If a kick occurred, move the ball immediately so it detaches from the player
+              newBallPosition[0] += newBallVelocity[0] * state.speedMultiplier;
+              newBallPosition[2] += newBallVelocity[2] * state.speedMultiplier;
           }
       }
     } else {
@@ -162,6 +192,8 @@ export const startSimulationLoop = () => {
       newBallSpin *= 0.95; 
       newImpactForce = 0;
     }
+
+    // Goal check is handled below in the wall bounce logic.
 
     // 1. Update Players
     const updatedPlayers = players.map(player => {
@@ -357,13 +389,28 @@ export const startSimulationLoop = () => {
 
     const newPrediction = updatePrediction(updatedPlayers, matchStats);
 
+    // Update match time (1s real = 30s game -> 33ms real = 990ms game ~= 0.0165 mins)
+    let newMatchTime = state.matchTime + (TICK_RATE / 1000) * 0.5 * state.speedMultiplier;
+    let newMatchStatus = state.matchStatus;
+    let newIsPlaying = state.isPlaying;
+
+    if (newMatchTime >= 90) {
+        newMatchTime = 90;
+        newMatchStatus = 'finished';
+        newIsPlaying = false; // Pause simulation
+    }
+
     useSimulationStore.getState().updateState({
       players: updatedPlayers,
       ball: updatedBall,
       matchStats: {
         ...matchStats,
         winProbability: newPrediction
-      }
+      },
+      passTrajectories: updatedTrajectories,
+      matchTime: newMatchTime,
+      matchStatus: newMatchStatus,
+      isPlaying: newIsPlaying
     });
 
   }, TICK_RATE);

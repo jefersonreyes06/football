@@ -1,5 +1,5 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Environment, PerspectiveCamera } from '@react-three/drei';
+import { OrbitControls, Environment, PerspectiveCamera, Line } from '@react-three/drei';
 import { useSimulationStore } from '../../store/useSimulationStore';
 import { Pitch } from './Pitch';
 import { PlayerComponent } from './Player';
@@ -34,6 +34,25 @@ const CameraController = () => {
   );
 };
 
+const PassTrajectories = () => {
+  const trajectories = useSimulationStore(state => state.passTrajectories);
+  
+  return (
+    <>
+      {trajectories.map(t => (
+        <Line 
+          key={t.id}
+          points={[t.start, t.end]}
+          color="#00ffff"
+          lineWidth={2}
+          transparent
+          opacity={t.opacity}
+        />
+      ))}
+    </>
+  );
+};
+
 export const Scene = () => {
   const players = useSimulationStore(state => state.players);
 
@@ -53,6 +72,7 @@ export const Scene = () => {
       <pointLight position={[10, 20, 10]} intensity={0.5} color="#ff00ff" />
 
       <Pitch />
+      <PassTrajectories />
 
       {players.map(p => (
         <PlayerComponent key={p.id} id={p.id} />

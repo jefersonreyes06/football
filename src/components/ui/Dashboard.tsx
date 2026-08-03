@@ -2,14 +2,20 @@ import { useSimulationStore } from '../../store/useSimulationStore';
 
 export const Dashboard = () => {
   const matchStats = useSimulationStore(state => state.matchStats);
+  const matchTime = useSimulationStore(state => state.matchTime);
   const { teamA, teamB } = matchStats.winProbability;
+
+  const minutes = Math.floor(matchTime);
+  const seconds = Math.floor((matchTime % 1) * 60);
+  const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
   return (
     <div className="bg-slate-900/80 backdrop-blur border border-cyan-500/30 rounded-xl p-4 pointer-events-auto w-[600px] mx-auto flex flex-col">
       <div className="flex justify-center items-center mb-4 gap-6">
         <div className="text-cyan font-display font-bold text-3xl glow-cyan text-right w-32">HON</div>
-        <div className="text-white font-display font-bold text-4xl tracking-widest bg-black/50 px-4 py-2 rounded-lg border border-white/10">
-          {matchStats.score.teamA} - {matchStats.score.teamB}
+        <div className="text-white font-display font-bold text-4xl tracking-widest bg-black/50 px-4 py-2 rounded-lg border border-white/10 text-center">
+          <div>{matchStats.score.teamA} - {matchStats.score.teamB}</div>
+          <div className="text-lg text-cyan-400 mt-1">{timeString}</div>
         </div>
         <div className="text-magenta font-display font-bold text-3xl glow-magenta text-left w-32">PAN</div>
       </div>

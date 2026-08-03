@@ -21,6 +21,7 @@ export interface Player {
   homePosition: Vector3;
   state: 'MAINTAINING_POSITION' | 'CHASING_BALL';
   possessionTimeMs: number;
+  actionCooldownMs: number;
 }
 
 export interface Ball {
@@ -46,12 +47,17 @@ interface SimulationState {
   selectedPlayerId: string | null;
   cameraMode: 'free' | 'ball' | 'ar';
   
+  matchTime: number; // 0 to 90
+  matchStatus: 'playing' | 'finished';
+  passTrajectories: { id: string; start: Vector3; end: Vector3; opacity: number }[];
+
   // Actions
   togglePlay: () => void;
   setSpeedMultiplier: (speed: number) => void;
   setSelectedPlayer: (id: string | null) => void;
   setCameraMode: (mode: 'free' | 'ball' | 'ar') => void;
   updateState: (partialState: Partial<SimulationState>) => void;
+  resetMatch: () => void;
 }
 
 // Initial dummy players for a 6v6
@@ -91,7 +97,8 @@ const generateInitialPlayers = (): Player[] => {
       role: role as 'GK' | 'DEF' | 'MID' | 'FWD',
       homePosition: homePos,
       state: 'MAINTAINING_POSITION',
-      possessionTimeMs: 0
+      possessionTimeMs: 0,
+      actionCooldownMs: 0
     });
   }
 
@@ -110,7 +117,8 @@ const generateInitialPlayers = (): Player[] => {
       role: role as 'GK' | 'DEF' | 'MID' | 'FWD',
       homePosition: homePos,
       state: 'MAINTAINING_POSITION',
-      possessionTimeMs: 0
+      possessionTimeMs: 0,
+      actionCooldownMs: 0
     });
   }
   return players;
@@ -135,9 +143,32 @@ export const useSimulationStore = create<SimulationState>((set) => ({
   selectedPlayerId: null,
   cameraMode: 'free',
 
+  matchTime: 0,
+  matchStatus: 'playing',
+  passTrajectories: [],
+
   togglePlay: () => set((state) => ({ isPlaying: !state.isPlaying })),
   setSpeedMultiplier: (speed) => set({ speedMultiplier: speed }),
   setSelectedPlayer: (id) => set({ selectedPlayerId: id }),
   setCameraMode: (mode) => set({ cameraMode: mode }),
   updateState: (partialState) => set((state) => ({ ...state, ...partialState })),
+  resetMatch: () => set({
+    isPlaying: false,
+    players: generateInitialPlayers(),
+    ball: {
+      position: [0, 0.5, 0],
+      velocity: [0, 0, 0],
+      rotation: [0, 0, 0],
+      spin: 0,
+      impactForce: 0,
+    },
+    matchStats: {
+      winProbability: { teamA: 50, teamB: 50 },
+      possessionTicks: { teamA: 0, teamB: 0 },
+      score: { teamA: 0, teamB: 0 },
+    },
+    matchTime: 0,
+    matchStatus: 'playing',
+    passTrajectories: []
+  }),
 }));
